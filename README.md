@@ -15,8 +15,8 @@ Features
 * Supports namespaces and rooms  
 * Supports ack (acknowledgment of received data)  
 * Supports SSL  
-* Supports client store (Memory, [Redisson](http://redisson.org), [Hazelcast](http://www.hazelcast.com/))  
-* Supports distributed broadcast across netty-socketio nodes ([Redisson](http://redisson.org), [Hazelcast](http://www.hazelcast.com/))  
+* Supports client store (Memory, [Redisson](https://redisson.org), [Hazelcast](https://www.hazelcast.com/))  
+* Supports distributed broadcast across netty-socketio nodes ([Redisson](https://redisson.org), [Hazelcast](https://www.hazelcast.com/))  
 * Supports OSGi  
 * Supports Spring  
 * Lock-free and thread-safe implementation  
@@ -47,6 +47,8 @@ Zipwhip: [zipwhip.com](https://zipwhip.com/)
 Recent Releases
 ================================
 #### Please Note: trunk is current development branch.
+
+#### 29-Apr-2021 - version 1.7.19 released  
 
 #### 17-Jan-2020 - version 1.7.18 released  
 Feature - support for event interceptors which catch all events (thanks to yosiat)  
@@ -261,7 +263,7 @@ Include the following to your dependency list:
     <dependency>
      <groupId>com.corundumstudio.socketio</groupId>
      <artifactId>netty-socketio</artifactId>
-     <version>1.7.12</version>
+     <version>1.7.19</version>
     </dependency>
     
 ### Supported by
