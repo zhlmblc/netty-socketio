@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.corundumstudio.socketio.listener;
 
 import com.corundumstudio.socketio.SocketIOClient;
 
+@Deprecated
 public interface PingListener {
 
     void onPing(SocketIOClient client);

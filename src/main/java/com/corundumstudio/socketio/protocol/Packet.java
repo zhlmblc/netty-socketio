@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ public class Packet implements Serializable {
     private static final long serialVersionUID = 4560159536486711426L;
 
     private PacketType type;
+    private EngineIOVersion engineIOVersion;
     private PacketType subType;
     private Long ackId;
     private String name;
@@ -42,9 +43,14 @@ public class Packet implements Serializable {
     protected Packet() {
     }
 
+    //only for tests
     public Packet(PacketType type) {
         super();
         this.type = type;
+    }
+    public Packet(PacketType type, EngineIOVersion engineIOVersion) {
+        this(type);
+        this.engineIOVersion = engineIOVersion;
     }
 
     public PacketType getSubType() {
@@ -83,13 +89,14 @@ public class Packet implements Serializable {
      * Otherwise, returns original object unchanged
      *
      * @param namespace
+     * @param engineIOVersion
      * @return packet
      */
-    public Packet withNsp(String namespace) {
+    public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
         if (this.nsp.equalsIgnoreCase(namespace)) {
             return this;
         } else {
-            Packet newPacket = new Packet(this.type);
+            Packet newPacket = new Packet(this.type, engineIOVersion);
             newPacket.setAckId(this.ackId);
             newPacket.setData(this.data);
             newPacket.setDataSource(this.dataSource);
@@ -103,6 +110,10 @@ public class Packet implements Serializable {
     }
 
     public void setNsp(String endpoint) {
+        //patch for #903
+        if (endpoint.equals("{}")){
+            endpoint="";
+        }
         this.nsp = endpoint;
     }
 
@@ -132,7 +143,7 @@ public class Packet implements Serializable {
 
     public void initAttachments(int attachmentsCount) {
         this.attachmentsCount = attachmentsCount;
-        this.attachments = new ArrayList<ByteBuf>(attachmentsCount);
+        this.attachments = new ArrayList<>();
     }
     public void addAttachment(ByteBuf attachment) {
         if (this.attachments.size() < attachmentsCount) {
@@ -154,6 +165,14 @@ public class Packet implements Serializable {
     }
     public void setDataSource(ByteBuf dataSource) {
         this.dataSource = dataSource;
+    }
+
+    public EngineIOVersion getEngineIOVersion() {
+        return engineIOVersion;
+    }
+
+    public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
+        this.engineIOVersion = engineIOVersion;
     }
 
     @Override

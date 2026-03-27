@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,6 @@ package com.corundumstudio.socketio.handler;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Queue;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
-
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.corundumstudio.socketio.Configuration;
 import com.corundumstudio.socketio.Transport;
 import com.corundumstudio.socketio.messages.HttpErrorMessage;
@@ -40,7 +26,6 @@ import com.corundumstudio.socketio.messages.XHROptionsMessage;
 import com.corundumstudio.socketio.messages.XHRPostMessage;
 import com.corundumstudio.socketio.protocol.Packet;
 import com.corundumstudio.socketio.protocol.PacketEncoder;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.ByteBufUtil;
@@ -60,11 +45,25 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import io.netty.util.CharsetUtil;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Queue;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Sharable
 public class EncoderHandler extends ChannelOutboundHandlerAdapter {
@@ -96,8 +95,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
     private void readVersion() throws IOException {
         Enumeration<URL> resources = getClass().getClassLoader().getResources("META-INF/MANIFEST.MF");
         while (resources.hasMoreElements()) {
-            try {
-                Manifest manifest = new Manifest(resources.nextElement().openStream());
+            try (InputStream inputStream = resources.nextElement().openStream()){
+                Manifest manifest = new Manifest(inputStream);
                 Attributes attrs = manifest.getMainAttributes();
                 if (attrs == null) {
                     continue;
@@ -117,8 +116,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK);
 
         res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId())
-                    .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
-                    .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
+                .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
 
         String origin = ctx.channel().attr(ORIGIN).get();
         addOriginHeaders(origin, res);
@@ -137,7 +136,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, status);
 
         res.headers().add(HttpHeaderNames.CONTENT_TYPE, type)
-                    .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
@@ -176,7 +175,6 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         channel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, promise).addListener(ChannelFutureListener.CLOSE);
     }
-    
     private void sendError(HttpErrorMessage errorMsg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         final ByteBuf encBuf = encoder.allocateBuffer(ctx.alloc());
         ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
@@ -190,15 +188,20 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             res.headers().add(HttpHeaderNames.SERVER, version);
         }
 
-        if (configuration.getOrigin() != null) {
-            res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, configuration.getOrigin());
-            res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-        } else {
-            if (origin != null) {
-                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+        if (configuration.isEnableCors()) {
+            if (configuration.getOrigin() != null) {
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, configuration.getOrigin());
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
             } else {
-                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+                if (origin != null) {
+                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
+                } else {
+                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+                }
+            }
+            if (configuration.getAllowHeaders() != null) {
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, configuration.getAllowHeaders());
             }
         }
     }
@@ -227,6 +230,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
     }
 
+
+    private static final int FRAME_BUFFER_SIZE = 8192;
+
+
     private void handleWebsocket(final OutPacketMessage msg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         ChannelFutureList writeFutureList = new ChannelFutureList();
 
@@ -238,16 +245,29 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 break;
             }
 
-            final ByteBuf out = encoder.allocateBuffer(ctx.alloc());
+            ByteBuf out = encoder.allocateBuffer(ctx.alloc());
             encoder.encodePacket(packet, out, ctx.alloc(), true);
 
-            WebSocketFrame res = new TextWebSocketFrame(out);
             if (log.isTraceEnabled()) {
                 log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
             }
-
-            if (out.isReadable()) {
-                writeFutureList.add(ctx.channel().writeAndFlush(res));
+            if (out.isReadable() && out.readableBytes() > configuration.getMaxFramePayloadLength()) {
+                ByteBuf dstStart = out.readSlice(FRAME_BUFFER_SIZE);
+                dstStart.retain();
+                WebSocketFrame start = new TextWebSocketFrame(false, 0, dstStart);
+                ctx.channel().write(start);
+                while (out.isReadable()) {
+                    int re = Math.min(out.readableBytes(), FRAME_BUFFER_SIZE);
+                    ByteBuf dst = out.readSlice(re);
+                    dst.retain();
+                    WebSocketFrame res = new ContinuationWebSocketFrame(!out.isReadable(), 0, dst);
+                    ctx.channel().write(res);
+                }
+                out.release();
+                ctx.channel().flush();
+            } else if (out.isReadable()){
+                WebSocketFrame res = new TextWebSocketFrame(out);
+                ctx.channel().writeAndFlush(res);
             } else {
                 out.release();
             }
@@ -298,7 +318,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
      * - all of the operations succeed
      * The setChannelPromise method should be called after all the futures are added
      */
-    private class ChannelFutureList implements GenericFutureListener<Future<Void>> {
+    private static class ChannelFutureList implements GenericFutureListener<Future<Void>> {
 
         private List<ChannelFuture> futureList = new ArrayList<ChannelFuture>();
         private ChannelPromise promise = null;

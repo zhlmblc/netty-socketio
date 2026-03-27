@@ -2,26 +2,37 @@ Netty-socketio Overview
 ===
 This project is an open-source Java implementation of [Socket.IO](http://socket.io/) server. Based on [Netty](http://netty.io/) server framework.  
 
-Checkout [Demo project](https://github.com/mrniko/netty-socketio-demo)
-
 Licensed under the Apache License 2.0.
 
 
 Features
 ================================
-* Supports __0.7__...__0.9.16__ (netty-socketio 1.6.6) and __1.0+__ (netty-socketio latest version) version of [Socket.IO-client](https://github.com/LearnBoost/socket.io-client)  
+* __1.x - 4.x__ version of [Socket.IO-client](https://github.com/socketio/socket.io) is supported
 * Supports xhr-polling transport  
 * Supports websocket transport  
 * Supports namespaces and rooms  
 * Supports ack (acknowledgment of received data)  
 * Supports SSL  
-* Supports client store (Memory, [Redisson](https://redisson.org), [Hazelcast](https://www.hazelcast.com/))  
-* Supports distributed broadcast across netty-socketio nodes ([Redisson](https://redisson.org), [Hazelcast](https://www.hazelcast.com/))  
+* Supports client store ([Redisson](https://redisson.pro), Hazelcast, Memory)  
+* Supports distributed broadcast across netty-socketio nodes ([Redisson](https://redisson.pro), Hazelcast)  
 * Supports OSGi  
 * Supports Spring  
+* Contains Java module info for JPMS. 
 * Lock-free and thread-safe implementation  
 * Declarative handler configuration via annotations  
 
+JAR is compatible with Java 8 but needs Java 11+ for building the module-info.
+
+### Maven 
+
+Include the following to your dependency list:
+```xml
+    <dependency>
+     <groupId>com.corundumstudio.socketio</groupId>
+     <artifactId>netty-socketio</artifactId>
+     <version>2.0.13</version>
+    </dependency>
+```
 
 Performance
 ================================
@@ -38,33 +49,133 @@ Customer feedback in __2014__:
 
 Projects using netty-socketio
 ================================
+Multiplayer Orchestra: [multiplayer-orchestra.com](https://multiplayer-orchestra.com/)  
 AVOS Cloud: [avoscloud.com](https://avoscloud.com/)  
-Bingo Crack: [bingocrack.com](http://bingocrack.com/)  
 Kambi Sports Solutions: [kambi.com](http://kambi.com/)  
 ARSnova: [arsnova.eu](https://arsnova.eu)  
-Zipwhip: [zipwhip.com](https://zipwhip.com/)
 
 Recent Releases
 ================================
 #### Please Note: trunk is current development branch.
 
+#### 19-Mar-2025 - version 2.0.13 released
+
+Fixed - Socket.IO Client v2 fails to connect (thanks to @penguinlab)  
+Fixed - Support for v1 / readNamespace. V1 namespace is without special characters , or ? (thanks to @Pacl0)  
+
+#### 01-Nov-2024 - version 2.0.12 released
+
+Feature - enableCors setting added (thanks to @zd925)  
+Feature - ability to define http request decoder (thanks to @gurkancakir)  
+
+Fixed - if ack returns after the timeout trigger ,a IllegalStateException will be thrown (thanks to @malinGH)  
+Fixed - prevents the client from repeatedly connecting to the namespace (thanks to @bigtian99)  
+Fixed - treat attachments as binary by default (thanks to @nicsor)  
+Fixed - recoverable handshake failure handling (thanks to @berinhardt)  
+Fixed - HashedWheelTimeoutScheduler should remove scheduledFutures before task execution (thanks to @berinhardt)  
+
+#### 25-Jul-2024 - version 2.0.11 released
+
+Fixed - custom namespaces support auth data (thanks to @Addi)  
+Fixed - attachments frame buffer reading  
+Fixed - memory leak while WebSocketServerHandshakeException or Channel failed (thanks to @h3mant-1)
+
+#### 01-Mar-2024 - version 2.0.9 released
+
+Feature - v3/v4 parsing of multiple messages in one HTTP polling body (thanks to @unverbraucht)
+
+Fixed - IllegalReferenceCountException error
+
+#### 24-Jan-2024 - version 2.0.8 released
+
+Fixed - possible OOM caused by attachments parsing
+
+#### 23-Jan-2024 - version 2.0.7 released
+
+Github Actions support made by @liangyuanpeng
+
+Feature - Java module support (thanks to @unverbraucht)  
+Feature - AuthTokenListener added (thanks to @unverbraucht)  
+Feature - multi-packet separator support (thanks to @unverbraucht)  
+
+Improvement - Send Bulk leave event instead of multiple leave events on disconnect (thanks to @ksahu750)  
+
+Fixed - NPE during ack response timeout (thanks to @BlueSodaWater)  
+Fixed - Resource Leak in readVersion() method (thanks to @JHOANG23)
+
+#### 24-Oct-2023 - version 2.0.6 released
+
+Feature - added availability to add key-value pairs to socket store during authorization (thanks to @shutuper)  
+Feature - getRoomOperations() method with room varargs param (thanks to @shutuper)  
+
+#### 01-Jul-2023 - version 2.0.3 released
+Fixed - client can't connect to non-default namespace (thanks to @lyjnew)
+
+#### 17-May-2023 - version 2.0.2 released
+Fixed - NPE in WebSocketTransport and PollingTransport (thanks to @Hunterk95)
+
+#### 14-May-2023 - version 2.0.1 released 
+JDK 8 is minimum version required for usage. 
+
+Fixed - message larger than maxFramePayloadLength causes memory leak  
+
+#### 14-May-2023 - version 2.0.0 released 
+Feature - SocketIO 4.x protocol support (thanks to @HashZhang)  
+
+Fixed - add all the socketio specific classes to bundles (thanks to @rishabhgup)  
+
+#### 17-Apr-2023 - version 1.7.25 released  
+Fixed - io.netty.channel.ChannelPipelineException error
+
+#### 14-Apr-2023 - version 1.7.24 released  
+Feature - SocketIOClient.isWritable() method added (thanks @xuwenqing04)  
+Feature - Namespace.addListeners(Iterable<L> listeners) method added (thanks @damonxue)  
+
+Fixed - disconnect event packet should be a subtype of MESSAGE (thanks @MasterShi)  
+Fixed - BaseStoreFactory throws NPE  
+
+#### 02-Feb-2023 - version 1.7.23 released  
+Feature - Added support for bulk join and leave (thanks @ksahu750)
+
+Fixed - auto disconnected (regression since 1.7.22)
+
+#### 22-Sep-2022 - version 1.7.22 released  
+Feature - ping/pong support for socketio v4 protocol (thanks to @HashZhang)
+
+#### 06-Aug-2022 - version 1.7.21 released  
+Fixed - transport name should be checked in uppercase (regression since 1.7.20)
+
+#### 26-Jul-2022 - version 1.7.20 released  
+Feature - needClientAuth setting added (thanks to @huws)
+
+Fixed - ContinuationWebSocketFrame should be used if payload > maxFramePayloadLength (thanks to 俞伟搏)  
+Fixed - event listener src class and dest bean is no match (thanks to @cifaz)  
+Fixed - illegal transport parameter (thanks to @mirus36)  
+
 #### 29-Apr-2021 - version 1.7.19 released  
+Feature - writeBufferWaterMarkLow and writeBufferWaterMarkHigh settings added (thanks to @xuminwlt)  
+Feature - allowHeaders setting added (thanks to @HuangHuan)  
+Feature - getCurrentRoomSize() method added (thanks to @sunxiaoyu3)  
+
+Fixed - namespace bug (thanks to @@johntyty912)  
+Fixed - multiple nodes with redisson receive same message (thanks to 梁嘉祺)  
+Fixed - multiple nodes receive only one LEAVE msg on client disconnect (thanks to @GaryLeung922)  
 
 #### 17-Jan-2020 - version 1.7.18 released  
-Feature - support for event interceptors which catch all events (thanks to yosiat)  
+Feature - support for event interceptors which catch all events (thanks to @yosiat)  
 Fixed - namespace event broadcasting (thanks to Volodymyr Masliy)  
 
 #### 11-Jan-2019 - version 1.7.17 released  
-Feature - randomSession setting added to Config object (thanks to yuanxiangz)  
+Feature - randomSession setting added to Config object (thanks to @yuanxiangz)  
 Fixed - NPE in WebSocketTransport  
 Fixed - NPE & memory leak (thanks to zhaolianwang)  
 Fixed - namespace parsing (thanks to Redliver)  
 Fixed - Redisson 3.9+ compatibility  
 
 #### 06-Jul-2018 - version 1.7.16 released  
-Fixed - non thread-safe ACK handling (thanks to dawnbreaks)  
-Fixed - inactive long-polling channels cause memory leak (thanks to dawnbreaks)  
-Fixed - websocket CloseFrame processing (thanks to hangsu.cho)  
+Fixed - non thread-safe ACK handling (thanks to @dawnbreaks)  
+Fixed - inactive long-polling channels cause memory leak (thanks to @dawnbreaks)  
+Fixed - websocket CloseFrame processing (thanks to @hangsu.cho)  
 Fixed - WebSocketTransport NPE  
 
 #### 15-May-2018 - version 1.7.15 released  
@@ -254,22 +365,3 @@ Improvement - logging error info with inbound data.
  
 #### 07-Jun-2013 - version 1.0.0 released
 First stable release.
-
-
-### Maven 
-
-Include the following to your dependency list:
-
-    <dependency>
-     <groupId>com.corundumstudio.socketio</groupId>
-     <artifactId>netty-socketio</artifactId>
-     <version>1.7.19</version>
-    </dependency>
-    
-### Supported by
-
-YourKit is kindly supporting this open source project with its full-featured Java Profiler.
-YourKit, LLC is the creator of innovative and intelligent tools for profiling
-Java and .NET applications. Take a look at YourKit's leading software products:
-<a href="http://www.yourkit.com/java/profiler/index.jsp">YourKit Java Profiler</a> and
-<a href="http://www.yourkit.com/.net/profiler/index.jsp">YourKit .NET Profiler</a>.

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,12 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import com.corundumstudio.socketio.*;
+import com.corundumstudio.socketio.protocol.EngineIOVersion;
+import com.corundumstudio.socketio.store.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +68,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
 
     private static final Logger log = LoggerFactory.getLogger(AuthorizeHandler.class);
 
-    private final CancelableScheduler disconnectScheduler;
+    private final CancelableScheduler scheduler;
 
     private final String connectPath;
     private final Configuration configuration;
@@ -84,7 +83,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         super();
         this.connectPath = connectPath;
         this.configuration = configuration;
-        this.disconnectScheduler = scheduler;
+        this.scheduler = scheduler;
         this.namespacesHub = namespacesHub;
         this.storeFactory = storeFactory;
         this.disconnectable = disconnectable;
@@ -95,7 +94,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     @Override
     public void channelActive(final ChannelHandlerContext ctx) throws Exception {
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
-        disconnectScheduler.schedule(key, new Runnable() {
+        scheduler.schedule(key, new Runnable() {
             @Override
             public void run() {
                 ctx.channel().close();
@@ -108,7 +107,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
-        disconnectScheduler.cancel(key);
+        scheduler.cancel(key);
 
         if (msg instanceof FullHttpRequest) {
             FullHttpRequest req = (FullHttpRequest) msg;
@@ -151,8 +150,11 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                 req.uri(), origin != null && !origin.equalsIgnoreCase("null"));
 
         boolean result = false;
+        Map<String, Object> storeParams = Collections.emptyMap();
         try {
-            result = configuration.getAuthorizationListener().isAuthorized(data);
+            AuthorizationResult authResult = configuration.getAuthorizationListener().getAuthorizationResult(data);
+            result = authResult.isAuthorized();
+            storeParams = authResult.getStoreParams();
         } catch (Exception e) {
             log.error("Authorization error", e);
         }
@@ -165,6 +167,27 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
+        List<String> transportValue = params.get("transport");
+        if (transportValue == null) {
+            log.error("Got no transports for request {}", req.uri());
+            writeAndFlushTransportError(channel, origin);
+            return false;
+        }
+
+        Transport transport = null;
+        try {
+            transport = Transport.valueOf(transportValue.get(0).toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.error("Unknown transport for request {}", req.uri());
+            writeAndFlushTransportError(channel, origin);
+            return false;
+        }
+        if (!configuration.getTransports().contains(transport)) {
+            log.error("Unsupported transport for request {}", req.uri());
+            writeAndFlushTransportError(channel, origin);
+            return false;
+        }
+
         UUID sessionId = null;
         if (configuration.isRandomSession()) {
             sessionId = UUID.randomUUID();
@@ -172,44 +195,40 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             sessionId = this.generateOrGetSessionIdFromRequest(req.headers());
         }
 
-        List<String> transportValue = params.get("transport");
-        if (transportValue == null) {
-            log.error("Got no transports for request {}", req.uri());
-
-            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.UNAUTHORIZED);
-            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
-            return false;
-        }
-
-        Transport transport = Transport.byName(transportValue.get(0));
-        if (!configuration.getTransports().contains(transport)) {
-            Map<String, Object> errorData = new HashMap<String, Object>();
-            errorData.put("code", 0);
-            errorData.put("message", "Transport unknown");
-
-            channel.attr(EncoderHandler.ORIGIN).set(origin);
-            channel.writeAndFlush(new HttpErrorMessage(errorData));
-            return false;
-        }
-
-        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, clientsBox, transport, disconnectScheduler, configuration);
+        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, clientsBox, transport, scheduler, configuration, params);
+        Store store = client.getStore();
+        storeParams.forEach(store::set);
         channel.attr(ClientHead.CLIENT).set(client);
         clientsBox.addClient(client);
 
         String[] transports = {};
-        if (configuration.getTransports().contains(Transport.WEBSOCKET)) {
+        //:TODO lyjnew   Current WEBSOCKET retrun upgrade[] engine-io protocol
+        // the test case line
+        // https://github.com/socketio/engine.io-protocol/blob/de247df875ddcd4778d1165829c8644301750e9f/test-suite/test-suite.js#L131C43-L131C43
+        if (configuration.getTransports().contains(Transport.WEBSOCKET) &&
+                !(EngineIOVersion.V4.equals(client.getEngineIOVersion()) && Transport.WEBSOCKET.equals(client.getCurrentTransport())))  {
             transports = new String[]{"websocket"};
         }
 
         AuthPacket authPacket = new AuthPacket(sessionId, transports, configuration.getPingInterval(),
                 configuration.getPingTimeout());
-        Packet packet = new Packet(PacketType.OPEN);
+        Packet packet = new Packet(PacketType.OPEN, client.getEngineIOVersion());
         packet.setData(authPacket);
         client.send(packet);
 
+        client.schedulePing();
         client.schedulePingTimeout();
         log.debug("Handshake authorized for sessionId: {}, query params: {} headers: {}", sessionId, params, headers);
         return true;
+    }
+
+    private void writeAndFlushTransportError(Channel channel, String origin) {
+        Map<String, Object> errorData = new HashMap<String, Object>();
+        errorData.put("code", 0);
+        errorData.put("message", "Transport unknown");
+
+        channel.attr(EncoderHandler.ORIGIN).set(origin);
+        channel.writeAndFlush(new HttpErrorMessage(errorData));
     }
 
     /**
@@ -246,16 +265,18 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
 
     public void connect(UUID sessionId) {
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
-        disconnectScheduler.cancel(key);
+        scheduler.cancel(key);
     }
 
     public void connect(ClientHead client) {
         Namespace ns = namespacesHub.get(Namespace.DEFAULT_NAME);
 
         if (!client.getNamespaces().contains(ns)) {
-            Packet packet = new Packet(PacketType.MESSAGE);
+            Packet packet = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
             packet.setSubType(PacketType.CONNECT);
-            client.send(packet);
+            //::TODO lyjnew V4 delay send connect packet  ON client add Namecapse
+            if (!EngineIOVersion.V4.equals(client.getEngineIOVersion()))
+                client.send(packet);
 
             configuration.getStoreFactory().pubSubStore().publish(PubSubType.CONNECT, new ConnectMessage(client.getSessionId()));
 

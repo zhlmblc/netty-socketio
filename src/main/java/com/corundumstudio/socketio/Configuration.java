@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,18 @@
  */
 package com.corundumstudio.socketio;
 
-import java.io.InputStream;
-import java.util.Arrays;
-import java.util.List;
-
 import com.corundumstudio.socketio.handler.SuccessAuthorizationListener;
 import com.corundumstudio.socketio.listener.DefaultExceptionListener;
 import com.corundumstudio.socketio.listener.ExceptionListener;
 import com.corundumstudio.socketio.protocol.JsonSupport;
 import com.corundumstudio.socketio.store.MemoryStoreFactory;
 import com.corundumstudio.socketio.store.StoreFactory;
+import io.netty.handler.codec.http.HttpDecoderConfig;
 
 import javax.net.ssl.KeyManagerFactory;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
 
 public class Configuration {
 
@@ -60,6 +60,8 @@ public class Configuration {
     private InputStream keyStore;
     private String keyStorePassword;
 
+    private String allowHeaders;
+
     private String trustStoreFormat = "JKS";
     private InputStream trustStore;
     private String trustStorePassword;
@@ -82,11 +84,17 @@ public class Configuration {
 
     private String origin;
 
+    private boolean enableCors = true;
+
     private boolean httpCompression = true;
 
     private boolean websocketCompression = true;
 
     private boolean randomSession = false;
+
+    private boolean needClientAuth = false;
+
+    private HttpRequestDecoderConfiguration httpRequestDecoderConfiguration = new HttpRequestDecoderConfiguration();
 
     public Configuration() {
     }
@@ -103,6 +111,7 @@ public class Configuration {
 
         setPingInterval(conf.getPingInterval());
         setPingTimeout(conf.getPingTimeout());
+        setFirstDataTimeout(conf.getFirstDataTimeout());
 
         setHostname(conf.getHostname());
         setPort(conf.getPort());
@@ -134,7 +143,7 @@ public class Configuration {
         setTrustStorePassword(conf.getTrustStorePassword());
         setKeyManagerFactoryAlgorithm(conf.getKeyManagerFactoryAlgorithm());
 
-        setTransports(conf.getTransports().toArray(new Transport[conf.getTransports().size()]));
+        setTransports(conf.getTransports().toArray(new Transport[0]));
         setMaxHttpContentLength(conf.getMaxHttpContentLength());
         setPackagePrefix(conf.getPackagePrefix());
 
@@ -149,11 +158,15 @@ public class Configuration {
 
         setAddVersionHeader(conf.isAddVersionHeader());
         setOrigin(conf.getOrigin());
+        setEnableCors(conf.isEnableCors());
+        setAllowHeaders(conf.getAllowHeaders());
         setSSLProtocol(conf.getSSLProtocol());
 
         setHttpCompression(conf.isHttpCompression());
         setWebsocketCompression(conf.isWebsocketCompression());
         setRandomSession(conf.randomSession);
+        setNeedClientAuth(conf.isNeedClientAuth());
+        setHttpRequestDecoderConfiguration(conf.getHttpRequestDecoderConfiguration());
     }
 
     public JsonSupport getJsonSupport() {
@@ -374,7 +387,7 @@ public class Configuration {
 
     /**
      * Authorization listener invoked on every handshake.
-     * Accepts or denies a client by {@code AuthorizationListener.isAuthorized} method.
+     * Accepts or denies a client by {@code AuthorizationListener.getAuthorizationResult} method.
      * <b>Accepts</b> all clients by default.
      *
      * @param authorizationListener - authorization listener itself
@@ -510,13 +523,30 @@ public class Configuration {
     public void setOrigin(String origin) {
         this.origin = origin;
     }
+
     public String getOrigin() {
         return origin;
+    }
+
+    /**
+     * cors dispose
+     * <p>
+     * Default is <code>true</code>
+     *
+     * @param enableCors enableCors
+     */
+    public void setEnableCors(boolean enableCors) {
+        this.enableCors = enableCors;
+    }
+
+    public boolean isEnableCors() {
+        return enableCors;
     }
 
     public boolean isUseLinuxNativeEpoll() {
         return useLinuxNativeEpoll;
     }
+
     public void setUseLinuxNativeEpoll(boolean useLinuxNativeEpoll) {
         this.useLinuxNativeEpoll = useLinuxNativeEpoll;
     }
@@ -531,6 +561,18 @@ public class Configuration {
     }
     public String getSSLProtocol() {
         return sslProtocol;
+    }
+
+
+    /**
+     * Set the response Access-Control-Allow-Headers
+     * @param allowHeaders - allow headers
+     * */
+    public void setAllowHeaders(String allowHeaders) {
+        this.allowHeaders = allowHeaders;
+    }
+    public String getAllowHeaders() {
+        return allowHeaders;
     }
 
     /**
@@ -583,5 +625,35 @@ public class Configuration {
 
     public void setRandomSession(boolean randomSession) {
         this.randomSession = randomSession;
+    }
+
+    /**
+     * Enable/disable client authentication.
+     * Has no effect unless a trust store has been provided.
+     *
+     * Default is <code>false</code>
+     *
+     * @param needClientAuth - <code>true</code> to use client authentication
+     */
+    public void setNeedClientAuth(boolean needClientAuth) {
+        this.needClientAuth = needClientAuth;
+    }
+    public boolean isNeedClientAuth() {
+        return needClientAuth;
+    }
+
+    public HttpRequestDecoderConfiguration getHttpRequestDecoderConfiguration() {
+        return httpRequestDecoderConfiguration;
+    }
+
+    public void setHttpRequestDecoderConfiguration(HttpRequestDecoderConfiguration httpRequestDecoderConfiguration) {
+        this.httpRequestDecoderConfiguration = httpRequestDecoderConfiguration;
+    }
+
+    public HttpDecoderConfig getHttpDecoderConfig() {
+        return new HttpDecoderConfig()
+                .setMaxInitialLineLength(httpRequestDecoderConfiguration.getMaxInitialLineLength())
+                .setMaxHeaderSize(httpRequestDecoderConfiguration.getMaxHeaderSize())
+                .setMaxChunkSize(httpRequestDecoderConfiguration.getMaxChunkSize());
     }
 }

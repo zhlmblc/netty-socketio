@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.corundumstudio.socketio.protocol.EngineIOVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +58,11 @@ public class NamespaceClient implements SocketIOClient {
     }
 
     @Override
+    public EngineIOVersion getEngineIOVersion() {
+        return baseClient.getEngineIOVersion();
+    }
+
+    @Override
     public boolean isChannelOpen() {
         return baseClient.isChannelOpen();
     }
@@ -68,7 +74,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, Object ... data) {
-        Packet packet = new Packet(PacketType.MESSAGE);
+        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -77,7 +83,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, AckCallback<?> ackCallback, Object ... data) {
-        Packet packet = new Packet(PacketType.MESSAGE);
+        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -86,6 +92,11 @@ public class NamespaceClient implements SocketIOClient {
 
     private boolean isConnected() {
         return !disconnected.get() && baseClient.isConnected();
+    }
+
+    @Override
+    public boolean isWritable() {
+        return isConnected() && this.baseClient.isWritable();
     }
 
     @Override
@@ -105,7 +116,7 @@ public class NamespaceClient implements SocketIOClient {
             return;
         }
 
-        baseClient.send(packet.withNsp(namespace.getName()));
+        baseClient.send(packet.withNsp(namespace.getName(), baseClient.getEngineIOVersion()));
     }
 
     public void onDisconnect() {
@@ -119,7 +130,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void disconnect() {
-        Packet packet = new Packet(PacketType.MESSAGE);
+        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
         packet.setSubType(PacketType.DISCONNECT);
         send(packet);
 //        onDisconnect();
@@ -173,8 +184,18 @@ public class NamespaceClient implements SocketIOClient {
     }
 
     @Override
+    public void joinRooms(Set<String> rooms) {
+        namespace.joinRooms(rooms, getSessionId());
+    }
+
+    @Override
     public void leaveRoom(String room) {
         namespace.leaveRoom(room, getSessionId());
+    }
+
+    @Override
+    public void leaveRooms(Set<String> rooms) {
+        namespace.leaveRooms(rooms, getSessionId());
     }
 
     @Override
@@ -200,6 +221,11 @@ public class NamespaceClient implements SocketIOClient {
     @Override
     public Set<String> getAllRooms() {
         return namespace.getRooms(this);
+    }
+
+    @Override
+    public int getCurrentRoomSize(String room) {
+        return namespace.getRoomClientsInCluster(room);
     }
 
     @Override

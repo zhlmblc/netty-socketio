@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,14 +32,4 @@ public enum Transport {
     public String getValue() {
         return value;
     }
-
-    public static Transport byName(String value) {
-        for (Transport t : Transport.values()) {
-            if (t.getValue().equals(value)) {
-                return t;
-            }
-        }
-        throw new IllegalArgumentException("Can't find " + value + " transport");
-    }
-
 }

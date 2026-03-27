@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
  */
 package com.corundumstudio.socketio.store.pubsub;
 
+import java.util.Set;
+
+import com.corundumstudio.socketio.namespace.Namespace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +59,10 @@ public abstract class BaseStoreFactory implements StoreFactory {
             public void onMessage(DispatchMessage msg) {
                 String name = msg.getRoom();
 
-                namespacesHub.get(msg.getNamespace()).dispatch(name, msg.getPacket());
+                Namespace n = namespacesHub.get(msg.getNamespace());
+                if (n != null) {
+                    n.dispatch(name, msg.getPacket());
+                }
                 log.debug("{} packet: {}", PubSubType.DISPATCH, msg.getPacket());
             }
         }, DispatchMessage.class);
@@ -66,20 +72,56 @@ public abstract class BaseStoreFactory implements StoreFactory {
             public void onMessage(JoinLeaveMessage msg) {
                 String name = msg.getRoom();
 
-                namespacesHub.get(msg.getNamespace()).join(name, msg.getSessionId());
+                Namespace n = namespacesHub.get(msg.getNamespace());
+                if (n != null) {
+                    n.join(name, msg.getSessionId());
+                }
                 log.debug("{} sessionId: {}", PubSubType.JOIN, msg.getSessionId());
             }
         }, JoinLeaveMessage.class);
+
+        pubSubStore().subscribe(PubSubType.BULK_JOIN, new PubSubListener<BulkJoinLeaveMessage>() {
+            @Override
+            public void onMessage(BulkJoinLeaveMessage msg) {
+                Set<String> rooms = msg.getRooms();
+
+                for (String room : rooms) {
+                    Namespace n = namespacesHub.get(msg.getNamespace());
+                    if (n != null) {
+                        n.join(room, msg.getSessionId());
+                    }
+                }
+                log.debug("{} sessionId: {}", PubSubType.BULK_JOIN, msg.getSessionId());
+            }
+        }, BulkJoinLeaveMessage.class);
 
         pubSubStore().subscribe(PubSubType.LEAVE, new PubSubListener<JoinLeaveMessage>() {
             @Override
             public void onMessage(JoinLeaveMessage msg) {
                 String name = msg.getRoom();
 
-                namespacesHub.get(msg.getNamespace()).leave(name, msg.getSessionId());
+                Namespace n = namespacesHub.get(msg.getNamespace());
+                if (n != null) {
+                    n.leave(name, msg.getSessionId());
+                }
                 log.debug("{} sessionId: {}", PubSubType.LEAVE, msg.getSessionId());
             }
         }, JoinLeaveMessage.class);
+
+        pubSubStore().subscribe(PubSubType.BULK_LEAVE, new PubSubListener<BulkJoinLeaveMessage>() {
+            @Override
+            public void onMessage(BulkJoinLeaveMessage msg) {
+                Set<String> rooms = msg.getRooms();
+
+                for (String room : rooms) {
+                    Namespace n = namespacesHub.get(msg.getNamespace());
+                    if (n != null) {
+                        n.leave(room, msg.getSessionId());
+                    }
+                }
+                log.debug("{} sessionId: {}", PubSubType.BULK_LEAVE, msg.getSessionId());
+            }
+        }, BulkJoinLeaveMessage.class);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,10 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
     private Class originalBeanClass;
 
+    private Object originalBean;
+
+    private String originalBeanName;
+
     public SpringAnnotationScanner(SocketIOServer socketIOServer) {
         super();
         this.socketIOServer = socketIOServer;
@@ -50,9 +54,10 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
         if (originalBeanClass != null) {
-            socketIOServer.addListeners(bean, originalBeanClass);
-            log.info("{} bean listeners added", beanName);
+            socketIOServer.addListeners(originalBean, originalBeanClass);
+            log.info("{} bean listeners added", originalBeanName);
             originalBeanClass = null;
+            originalBeanName = null;
         }
         return bean;
     }
@@ -82,6 +87,8 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
         if (add.get()) {
             originalBeanClass = bean.getClass();
+            originalBean = bean;
+            originalBeanName = beanName;
         }
         return bean;
     }

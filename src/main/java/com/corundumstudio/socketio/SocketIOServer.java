@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,7 @@ package com.corundumstudio.socketio;
 
 import com.corundumstudio.socketio.listener.*;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.FixedRecvByteBufAllocator;
-import io.netty.channel.ServerChannel;
+import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -113,20 +110,22 @@ public class SocketIOServer implements ClientListeners {
 
     /**
      * Get broadcast operations for clients within
-     * room by <code>room</code> name
+     * rooms by <code>rooms'</code> names
      *
-     * @param room - name of room
+     * @param rooms rooms' names
      * @return broadcast operations
      */
-    public BroadcastOperations getRoomOperations(String room) {
+    public BroadcastOperations getRoomOperations(String... rooms) {
         Collection<SocketIONamespace> namespaces = namespacesHub.getAllNamespaces();
         List<BroadcastOperations> list = new ArrayList<BroadcastOperations>();
         BroadcastOperations broadcast = null;
         if( namespaces != null && namespaces.size() > 0 ) {
             for( SocketIONamespace n : namespaces ) {
-                broadcast = n.getRoomOperations( room );
-                list.add( broadcast );
-            }
+				for ( String room : rooms ) {
+                    broadcast = n.getRoomOperations( room );
+                    list.add( broadcast );
+                }
+			}
         }
         return new MultiRoomBroadcastOperations( list );
     }
@@ -187,6 +186,13 @@ public class SocketIOServer implements ClientListeners {
             bootstrap.childOption(ChannelOption.SO_RCVBUF, config.getTcpReceiveBufferSize());
             bootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
         }
+        //default value @see WriteBufferWaterMark.DEFAULT
+        if (config.getWriteBufferWaterMarkLow() != -1 && config.getWriteBufferWaterMarkHigh() != -1) {
+            bootstrap.childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
+                    config.getWriteBufferWaterMarkLow(), config.getWriteBufferWaterMarkHigh()
+            ));
+        }
+
         bootstrap.childOption(ChannelOption.SO_KEEPALIVE, config.isTcpKeepAlive());
         bootstrap.childOption(ChannelOption.SO_LINGER, config.getSoLinger());
 
@@ -274,12 +280,21 @@ public class SocketIOServer implements ClientListeners {
     public void addPingListener(PingListener listener) {
         mainNamespace.addPingListener(listener);
     }
+    @Override
+    public void addPongListener(PongListener listener) {
+        mainNamespace.addPongListener(listener);
+    }
 
     @Override
     public void addListeners(Object listeners) {
         mainNamespace.addListeners(listeners);
     }
-    
+
+    @Override
+    public <L> void addListeners(Iterable<L> listeners) {
+        mainNamespace.addListeners(listeners);
+    }
+
     @Override
     public void addListeners(Object listeners, Class<?> listenersClass) {
         mainNamespace.addListeners(listeners, listenersClass);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012-2019 Nikita Koksharov
+ * Copyright (c) 2012-2023 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ public class AckRequest {
         if (!isAckRequested() || !sended.compareAndSet(false, true)) {
             return;
         }
-        Packet ackPacket = new Packet(PacketType.MESSAGE);
+        Packet ackPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
         ackPacket.setSubType(PacketType.ACK);
         ackPacket.setAckId(originalPacket.getAckId());
         ackPacket.setData(objs);
